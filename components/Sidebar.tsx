@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -13,7 +14,10 @@ export default function Sidebar() {
 
   return (
     <div className="w-64 bg-secondary p-4">
-      <h2 className="text-lg font-semibold mb-4">Saved Queries</h2>
+    <div className="flex items-center w-full">
+      <Image src="/icon.png" width={30} height={20} alt="icon" className="mr-2" />
+      <div className="font-semibold">ChatCommerce</div>
+    </div>
       <ScrollArea className="h-[calc(100vh-8rem)]">
         {savedQueries.map((query, index) => (
           <Button

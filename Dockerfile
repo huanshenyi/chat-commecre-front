@@ -1,23 +1,21 @@
-# Use an official Node runtime as the parent image
-FROM node:18-alpine
+FROM node:20-bookworm AS build
 
-# Set the working directory in the container to /app
 WORKDIR /app
-
-# Copy package.json and package-lock.json to the working directory
-COPY package*.json ./
-
-# Install any needed packages specified in package.json
-RUN npm install
-
-# Copy the rest of the application code to the working directory
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
-
-# Build the Next.js application
 RUN npm run build
 
-# Make port 3000 available to the world outside this container
+FROM node:20-bookworm AS production
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --only=production
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/public ./public
+
 EXPOSE 3000
+USER node
 
 # Run the app when the container launches
 CMD ["npm", "start"]
