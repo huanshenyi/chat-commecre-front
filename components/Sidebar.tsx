@@ -17,6 +17,7 @@ export default function Sidebar() {
     <div className="flex items-center w-full">
       <Image src="/icon.png" width={30} height={20} alt="icon" className="mr-2" />
       <div className="font-semibold">ChatCommerce</div>
+      {/* <div className="font-semibold">Bedrock Agent</div> */}
     </div>
       <ScrollArea className="h-[calc(100vh-8rem)]">
         {savedQueries.map((query, index) => (

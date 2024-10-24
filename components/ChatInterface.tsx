@@ -5,6 +5,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogTitle,
+  DialogClose,
+  DialogHeader,
+} from "@/components/ui/dialog";
 import SalesChart from "@/components/SalesChart";
 import { mockAIResponse } from "@/lib/mockData";
 
@@ -32,6 +40,8 @@ export default function ChatInterface() {
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [salesData, setSalesData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  // ダイアログ表示コントロール用
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
   // メッセージを追加する共通関数
@@ -50,8 +60,8 @@ export default function ChatInterface() {
       const client = initializeAWSClient();
       const sessionId = Date.now().toString(); // 簡単なセッションID生成
       const command = new InvokeAgentCommand({
-        agentId: "1FAPOJ3QFF",
-        agentAliasId: "YNAIKULURV",
+        agentId: process.env.NEXT_PUBLIC_AWS_AGENTID as string,
+        agentAliasId: process.env.NEXT_PUBLIC_AWS_AGENT_ALIASID as string,
         sessionId,
         inputText: input,
       });
@@ -106,8 +116,15 @@ export default function ChatInterface() {
     }
   };
 
-  const handleSamplePrompt = () => {
-    setInput("エアコン売りたいですけど、今売れそう?");
+  const prompts = [
+    "ルームエアコン2024年1月から2024年6月までの売上ランキングを教えてほしい",
+    "冷蔵庫の2023年度の販売数を地域ごとに知りたい",
+    "洗濯機の売上データを過去3年間の推移で示してほしい"
+  ];
+
+  const handleSelectPrompt = (prompt: string) => {
+    setInput(prompt);
+    setIsDialogOpen(false);
   };
 
   return (
@@ -132,9 +149,34 @@ export default function ChatInterface() {
           <Button type="submit" disabled={loading} variant="default" className="bg-[#0f60c4cc]">
             メッセージ送信
           </Button>
-          <Button type="button" variant="outline" onClick={handleSamplePrompt}>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogTrigger asChild>
+        <Button type="button" variant="outline">
             サンプルプロンプト
           </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>プロンプトを選択してください</DialogTitle>
+          </DialogHeader>
+          <ul className="space-y-2">
+            {prompts.map((prompt, index) => (
+              <li key={index}>
+                <button data-radix-dialog-close onClick={() => handleSelectPrompt(prompt)}
+                  className="w-full p-2 text-left bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  {prompt}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <DialogClose asChild>
+            <button className="mt-4 p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+              キャンセル
+            </button>
+          </DialogClose>
+        </DialogContent>
+      </Dialog>
           <Button type="button" variant="secondary" onClick={handleSaveData} disabled={!salesData}>
             データ保存
           </Button>
