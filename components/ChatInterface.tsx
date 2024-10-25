@@ -1,7 +1,7 @@
 "use client";
 import { BedrockAgentRuntimeClient, InvokeAgentCommand } from "@aws-sdk/client-bedrock-agent-runtime";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import SalesChart from "@/components/SalesChart";
 import { mockAIResponse } from "@/lib/mockData";
+import { extractJsonData } from "@/lib/utils"
 
 // AWSクライアントの初期化を関数化
 const initializeAWSClient = () => {
@@ -38,7 +39,7 @@ const initializeAWSClient = () => {
 export default function ChatInterface() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
-  const [salesData, setSalesData] = useState<any>(null);
+  const [salesData, setSalesData] = useState<Array<{ date: string; sales: string }>>([]);
   const [loading, setLoading] = useState(false);
   // ダイアログ表示コントロール用
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -55,6 +56,8 @@ export default function ChatInterface() {
 
     setLoading(true);
     addMessage("user", input);
+    const now = new Date();
+    const formattedTime = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
 
     try {
       const client = initializeAWSClient();
@@ -63,7 +66,7 @@ export default function ChatInterface() {
         agentId: process.env.NEXT_PUBLIC_AWS_AGENTID as string,
         agentAliasId: process.env.NEXT_PUBLIC_AWS_AGENT_ALIASID as string,
         sessionId,
-        inputText: input,
+        inputText: `今は${formattedTime},${input}`,
       });
 
       // ベドロックエージェントの呼び出し
@@ -89,14 +92,22 @@ export default function ChatInterface() {
     }
 
     setInput("");
-    handleMockAIResponse(input); // モックデータを使った応答の呼び出し
   };
 
-  // モックデータ応答の処理
-  const handleMockAIResponse = async (input: string) => {
-    const aiResponse = await mockAIResponse(input);
-    setSalesData(aiResponse);
-  };
+  useEffect(() => {
+    // メッセージが更新されるたびに、salesDataが存在する場合にグラフを表示する
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.role === "assistant") {
+      try {
+        const jsonData = extractJsonData(lastMessage.content);
+        if (jsonData) {
+          setSalesData(jsonData.data.sales_data || []);
+        }
+      } catch (error) {
+        console.error("Error extracting JSON data from last message:", error);
+      }
+    }
+  }, [messages]);
 
   const handleSaveData = () => {
     if (salesData) {
@@ -117,9 +128,10 @@ export default function ChatInterface() {
   };
 
   const prompts = [
-    "ルームエアコン2024年1月から2024年6月までの売上ランキングを教えてほしい",
-    "冷蔵庫の2023年度の販売数を地域ごとに知りたい",
-    "洗濯機の売上データを過去3年間の推移で示してほしい"
+    "東京の天気教えて",
+    "ルームエアコン2024年1月から2024年6月までの売上ランキングを教えてほしい。",
+    "ルームエアコンのcid_path教えて。",
+    "ルームエアコンこれからの売れ行き予測してほしい"
   ];
 
   const handleSelectPrompt = (prompt: string) => {
@@ -129,14 +141,24 @@ export default function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto mb-4 space-y-4">
-        {messages.map((message, index) => (
-          <div key={index} className={`p-4 rounded-lg ${message.role === "user" ? " text-primary-foreground bg-[#0f60c4cc]" : "bg-secondary"}`}>
-            {message.content}
-          </div>
-        ))}
-        {salesData && <SalesChart data={salesData} />}
+<div className="flex-1 overflow-y-auto mb-4 space-y-4">
+  {messages.map((message, index) => {
+    const content =
+      message.role === "user"
+        ? message.content
+        : extractJsonData(message.content)?.message || message.content;
+
+    return (
+      <div
+        key={index}
+        className={`p-4 rounded-lg ${message.role === "user" ? "text-primary-foreground bg-[#0f60c4cc]" : "bg-secondary"}`}
+      >
+        {content}
       </div>
+    );
+  })}
+  {salesData.length > 0 && <SalesChart sales_data={salesData} />}
+</div>
       <form onSubmit={handleSubmit} className="flex space-x-2">
         {loading && <p>読み込み中...</p>}
         <Textarea

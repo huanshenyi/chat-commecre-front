@@ -3,18 +3,19 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface SalesChartProps {
-  data: {
-    product_name: string;
-    sales_data: Array<{ date: string; sales: number }>;
-  };
+  sales_data: Array<{ date: string; sales: string }>;
 }
 
-export default function SalesChart({ data }: SalesChartProps) {
+export default function SalesChart({ sales_data }: SalesChartProps) {
+  const formattedData = sales_data.map(data => ({
+    date: data.date,
+    sales: Number(data.sales),
+  }));
   return (
     <div className="w-full h-64 mt-4">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
-          data={data.sales_data}
+          data={formattedData}
           margin={{
             top: 5,
             right: 30,
@@ -24,10 +25,10 @@ export default function SalesChart({ data }: SalesChartProps) {
         >
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" />
-          <YAxis />
-          <Tooltip />
+          <YAxis dataKey="sales"/>
+          <Tooltip/>
           <Legend />
-          <Line type="monotone" dataKey="sales" stroke="var(--chart-1)" activeDot={{ r: 8 }} />
+          <Line type="monotone" dataKey="sales" stroke="#8884d8" activeDot={{ r: 8 }} />
         </LineChart>
       </ResponsiveContainer>
     </div>
