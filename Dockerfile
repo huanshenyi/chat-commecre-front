@@ -4,6 +4,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+
+COPY .env.production .env
+
 RUN npm run build
 
 FROM node:20-bookworm AS production

@@ -14,25 +14,29 @@ import {
   DialogHeader,
 } from "@/components/ui/dialog";
 import SalesChart from "@/components/SalesChart";
-import { mockAIResponse } from "@/lib/mockData";
 import { extractJsonData } from "@/lib/utils"
 
 // AWSクライアントの初期化を関数化
 const initializeAWSClient = () => {
   const region = process.env.NEXT_PUBLIC_AWS_REGION || 'ap-northeast-1';
-  const credentials = {
-    accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID as string,
-    secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY as string,
-    sessionToken: process.env.NEXT_PUBLIC_AWS_SESSION_TOKEN as string,
-  };
 
   // ローカル環境とECS環境の両方に対応
-  if (process.env.IS_ECS === 'true') {
+  console.log(process.env.NEXT_PUBLIC_IS_ECS, process.env.NEXT_PUBLIC_AWS_REGION, process.env.NEXT_PUBLIC_AWS_AGENTID)
+  if (process.env.NEXT_PUBLIC_IS_ECS === 'true') {
     // ECS環境用の設定（ECSの場合、認証情報は自動的に提供される）
-    return new BedrockAgentRuntimeClient({ region });
+    return new BedrockAgentRuntimeClient({ region: region, credentials : {
+      accessKeyId: "",
+      secretAccessKey: "",
+      sessionToken: "",
+    }});
   } else {
     // ローカル環境用の設定
-    return new BedrockAgentRuntimeClient({ region, credentials });
+    const credentials = {
+      accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID as string,
+      secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY as string,
+      sessionToken: process.env.NEXT_PUBLIC_AWS_SESSION_TOKEN as string,
+    };
+    return new BedrockAgentRuntimeClient({ region: region, credentials: credentials });
   }
 };
 
@@ -63,8 +67,8 @@ export default function ChatInterface() {
       const client = initializeAWSClient();
       const sessionId = Date.now().toString(); // 簡単なセッションID生成
       const command = new InvokeAgentCommand({
-        agentId: process.env.NEXT_PUBLIC_AWS_AGENTID as string,
-        agentAliasId: process.env.NEXT_PUBLIC_AWS_AGENT_ALIASID as string,
+        agentId: process.env.NEXT_PUBLIC_AWS_AGENTID,
+        agentAliasId: process.env.NEXT_PUBLIC_AWS_AGENT_ALIASID,
         sessionId,
         inputText: `今は${formattedTime},${input}`,
       });
