@@ -1,142 +1,48 @@
-"use client";
-import { BedrockAgentRuntimeClient, InvokeAgentCommand } from "@aws-sdk/client-bedrock-agent-runtime";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogTitle,
-  DialogClose,
-  DialogHeader,
-} from "@/components/ui/dialog";
-import SalesChart from "@/components/SalesChart";
-import { extractJsonData } from "@/lib/utils"
+import { motion } from 'framer-motion';
+import { ArrowUp, BarChart3, Download, Squircle } from 'lucide-react';
+import { useState } from 'react';
 
-// AWSクライアントの初期化を関数化
-const initializeAWSClient = () => {
-  const region = process.env.NEXT_PUBLIC_AWS_REGION || 'ap-northeast-1';
+import { ChatMessages } from '@/components/ChatMessages';
+import { PromptDialog } from '@/components/PromptDialog';
+import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
+import { useToast } from '@/components/ui/use-toast';
+import { useChat } from '@/hooks/use-chat';
 
-  // ローカル環境とECS環境の両方に対応
-  console.log(process.env.NEXT_PUBLIC_IS_ECS, process.env.NEXT_PUBLIC_AWS_REGION, process.env.NEXT_PUBLIC_AWS_AGENTID)
-  if (process.env.NEXT_PUBLIC_IS_ECS === 'true') {
-    // ECS環境用の設定（ECSの場合、認証情報は自動的に提供される）
-    return new BedrockAgentRuntimeClient({ region: region, credentials : {
-      accessKeyId: "",
-      secretAccessKey: "",
-      sessionToken: "",
-    }});
-  } else {
-    // ローカル環境用の設定
-    const credentials = {
-      accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID as string,
-      secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY as string,
-      sessionToken: process.env.NEXT_PUBLIC_AWS_SESSION_TOKEN as string,
-    };
-    return new BedrockAgentRuntimeClient({ region: region, credentials: credentials });
-  }
-};
+const prompts = [
+  '東京の天気教えて。',
+  'ルームエアコン2024年1月から2024年6月までの売上ランキングを教えてほしい。',
+  'ルームエアコンのcid_path教えて。',
+  'ルームエアコンこれからの売れ行き予測してほしい。',
+  'これからルームエアコンを販売したい、2024年6月から、2024年10月までの人気商品データを参考して、どんな商品を出した方が売上が高くなると見込めるのか？',
+];
 
 export default function ChatInterface() {
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
-  const [salesData, setSalesData] = useState<Array<{ date: string; sales: string }>>([]);
-  const [loading, setLoading] = useState(false);
-  // ダイアログ表示コントロール用
+  const { input, setInput, messages, trendData, salesItem, loading, handleSubmit } = useChat();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   const { toast } = useToast();
 
-  // メッセージを追加する共通関数
-  const addMessage = (role: string, content: string) => {
-    setMessages((prev) => [...prev, { role, content }]);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim()) return;
-
-    setLoading(true);
-    addMessage("user", input);
-    const now = new Date();
-    const formattedTime = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
-
-    try {
-      const client = initializeAWSClient();
-      const sessionId = Date.now().toString(); // 簡単なセッションID生成
-      const command = new InvokeAgentCommand({
-        agentId: process.env.NEXT_PUBLIC_AWS_AGENTID,
-        agentAliasId: process.env.NEXT_PUBLIC_AWS_AGENT_ALIASID,
-        sessionId,
-        inputText: `今は${formattedTime},${input}`,
-      });
-
-      // ベドロックエージェントの呼び出し
-      const response = await client.send(command);
-      let completion = "";
-
-      if (response.completion) {
-        for await (let chunkEvent of response.completion) {
-          const chunk = chunkEvent.chunk;
-          if (chunk !== undefined) {
-            const decodedResponse = new TextDecoder("utf-8").decode(chunk.bytes);
-            completion += decodedResponse;
-          }
-        }
-      }
-
-      addMessage("assistant", completion);
-    } catch (error) {
-      console.error("Error calling Bedrock Agent:", error);
-      addMessage("assistant", "エラーが発生しました。");
-    } finally {
-      setLoading(false);
-    }
-
-    setInput("");
-  };
-
-  useEffect(() => {
-    // メッセージが更新されるたびに、salesDataが存在する場合にグラフを表示する
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage && lastMessage.role === "assistant") {
-      try {
-        const jsonData = extractJsonData(lastMessage.content);
-        if (jsonData) {
-          setSalesData(jsonData.data.sales_data || []);
-        }
-      } catch (error) {
-        console.error("Error extracting JSON data from last message:", error);
-      }
-    }
-  }, [messages]);
-
   const handleSaveData = () => {
-    if (salesData) {
-      const dataStr = JSON.stringify(salesData);
-      const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
-      const exportFileDefaultName = "sales_data.json";
+    if (trendData.length > 0) {
+      const dataStr = JSON.stringify(trendData);
+      // biome-ignore lint/style/useTemplate: <explanation>
+      const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+      const exportFileDefaultName = 'trend_data.json';
 
-      const linkElement = document.createElement("a");
-      linkElement.setAttribute("href", dataUri);
-      linkElement.setAttribute("download", exportFileDefaultName);
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
       linkElement.click();
 
       toast({
-        title: "Data Saved",
-        description: "Sales data has been saved successfully.",
+        title: 'Data Saved',
+        description: 'Sales data has been saved successfully.',
       });
     }
   };
-
-  const prompts = [
-    "東京の天気教えて",
-    "ルームエアコン2024年1月から2024年6月までの売上ランキングを教えてほしい。",
-    "ルームエアコンのcid_path教えて。",
-    "ルームエアコンこれからの売れ行き予測してほしい"
-  ];
 
   const handleSelectPrompt = (prompt: string) => {
     setInput(prompt);
@@ -145,69 +51,79 @@ export default function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full">
-<div className="flex-1 overflow-y-auto mb-4 space-y-4">
-  {messages.map((message, index) => {
-    const content =
-      message.role === "user"
-        ? message.content
-        : extractJsonData(message.content)?.message || message.content;
+      <ChatMessages messages={messages} trendData={trendData} salesItem={salesItem} />
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        {messages.length === 0 && (
+          <motion.h1
+            className="text-2xl font-bold text-center mb-8"
+            initial={{ opacity: 0, y: 30, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{
+              duration: 0.6,
+              ease: [0.6, -0.05, 0.01, 0.99],
+              type: 'spring',
+              bounce: 0.4,
+            }}
+          >
+            お手伝いできることはありますか？
+          </motion.h1>
+        )}
 
-    return (
-      <div
-        key={index}
-        className={`p-4 rounded-lg ${message.role === "user" ? "text-primary-foreground bg-[#0f60c4cc]" : "bg-secondary"}`}
-      >
-        {content}
-      </div>
-    );
-  })}
-  {salesData.length > 0 && <SalesChart sales_data={salesData} />}
-</div>
-      <form onSubmit={handleSubmit} className="flex space-x-2">
-        {loading && <p>読み込み中...</p>}
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="聞きたいことを入力してください..."
-          className="flex-1"
-        />
-        <div className="flex flex-col space-y-2">
-          <Button type="submit" disabled={loading} variant="default" className="bg-[#0f60c4cc]">
-            メッセージ送信
-          </Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogTrigger asChild>
-        <Button type="button" variant="outline">
-            サンプルプロンプト
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>プロンプトを選択してください</DialogTitle>
-          </DialogHeader>
-          <ul className="space-y-2">
-            {prompts.map((prompt, index) => (
-              <li key={index}>
-                <button data-radix-dialog-close onClick={() => handleSelectPrompt(prompt)}
-                  className="w-full p-2 text-left bg-gray-100 rounded-md hover:bg-gray-200"
+        <div className="relative mb-6 min-w-[770px]">
+          <div className="relative bg-gray-50 rounded-2xl p-4 min-h-[100px]">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              className="w-full bg-transparent border-none outline-none placeholder:text-gray-500 mb-6 min-h-[50px]"
+              placeholder="ChatCommerceにメッセージを送信する"
+            />
+            <div className="absolute bottom-4 left-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleSaveData}
+                disabled={!trendData.length && !salesItem.length}
+                className="p-1 hover:bg-gray-200 rounded-md transition-colors"
+              >
+                <Download className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="absolute bottom-4 right-4">
+              <Tooltip content="入力が空です" isVisible={isTooltipVisible}>
+                <Button
+                  type="button"
+                  className={`hover:bg-gray-200 ${input ? 'bg-gray-700' : 'bg-gray-300'} `}
+                  disabled={loading}
+                  variant="outline"
+                  size="icon"
+                  onClick={handleSubmit}
+                  onFocus={() => !input.trim() && setIsTooltipVisible(true)}
+                  onBlur={() => setIsTooltipVisible(false)}
                 >
-                  {prompt}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <DialogClose asChild>
-            <button className="mt-4 p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-              キャンセル
-            </button>
-          </DialogClose>
-        </DialogContent>
-      </Dialog>
-          <Button type="button" variant="secondary" onClick={handleSaveData} disabled={!salesData}>
-            データ保存
-          </Button>
+                  {loading ? (
+                    <Squircle className="h-6 w-6 bg-gray-700" />
+                  ) : (
+                    <ArrowUp className="h-6 w-6 text-gray-50" strokeWidth={3} />
+                  )}
+                </Button>
+              </Tooltip>
+            </div>
+          </div>
         </div>
-      </form>
+
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="rounded-full h-9 px-4 gap-2">
+            <BarChart3 className="h-4 w-4 text-blue-500" />
+            <span>商品分析する</span>
+          </Button>
+
+          <PromptDialog
+            isOpen={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            prompts={prompts}
+            onSelectPrompt={handleSelectPrompt}
+          />
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,44 @@
+FROM oven/bun:latest AS build
+
+WORKDIR /app
+
+# 環境変数をビルド時に渡せるようにする
+ARG NEXT_PUBLIC_IS_ECS
+ARG NEXT_PUBLIC_AWS_REGION
+ARG NEXT_PUBLIC_AWS_ACCESS_KEY_ID
+ARG NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY
+ARG NEXT_PUBLIC_AWS_AGENTID
+ARG NEXT_PUBLIC_AWS_AGENT_ALIASID
+ARG AUTH_TOKEN_COOKIE_NAME
+
+COPY apps/front/package.json /app/apps/front/
+RUN cd /app/apps/front/ &&\
+  bun install
+COPY apps/front/ /app/apps/front/
+
+RUN echo "NEXT_PUBLIC_IS_ECS=$NEXT_PUBLIC_IS_ECS" >> /app/apps/front/.env.production && \
+    echo "NEXT_PUBLIC_AWS_REGION=$NEXT_PUBLIC_AWS_REGION" >> /app/apps/front/.env.production && \
+    echo "NEXT_PUBLIC_AWS_ACCESS_KEY_ID=$NEXT_PUBLIC_AWS_ACCESS_KEY_ID" >> /app/apps/front/.env.production && \
+    echo "NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY=$NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY" >> /app/apps/front/.env.production && \
+    echo "NEXT_PUBLIC_AWS_AGENTID=$NEXT_PUBLIC_AWS_AGENTID" >> /app/apps/front/.env.production && \
+    echo "NEXT_PUBLIC_AWS_AGENT_ALIASID=$NEXT_PUBLIC_AWS_AGENT_ALIASID" >> /app/apps/front/.env.production && \
+    echo "AUTH_TOKEN_COOKIE_NAME=$AUTH_TOKEN_COOKIE_NAME" >> /app/apps/front/.env.production
+
+RUN cd /app/apps/front/ &&\
+  bun run build
+
+FROM oven/bun:latest AS production
+
+WORKDIR /app
+
+COPY apps/front/package.json /app
+RUN bun install --production
+
+COPY --from=build /app/apps/front/.next ./.next
+COPY --from=build /app/apps/front/public ./public
+
+EXPOSE 3000
+
+USER bun
+
+CMD ["bun", "start"]
